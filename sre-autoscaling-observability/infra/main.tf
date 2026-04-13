@@ -8,8 +8,10 @@ terraform {
   }
   # Free: Terraform Cloud backend (1 user, free forever)
   # Sign up at app.terraform.io, create org + workspace, fill in below
-  backend "remote" {
-    organization = "YOUR_TF_CLOUD_ORG"
+  cloud {
+    
+    organization = "viswa-sre"
+
     workspaces {
       name = "sre-autoscaling-gcp"
     }
