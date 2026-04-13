@@ -1,0 +1,25 @@
+# GKE uses a built-in HTTP Load Balancer via this ingress class
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sre-app-ingress
+  namespace: sre-app
+  annotations:
+    kubernetes.io/ingress.class: "gce"
+    kubernetes.io/ingress.global-static-ip-name: "sre-app-ip"
+spec:
+  defaultBackend:
+    service:
+      name: sre-app-svc
+      port:
+        number: 80
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sre-app-svc
+                port:
+                  number: 80

@@ -1,0 +1,20 @@
+# Tells Prometheus Operator to auto-discover and scrape the app
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: sre-app-monitor
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  namespaceSelector:
+    matchNames:
+      - sre-app
+  selector:
+    matchLabels:
+      app: sre-app
+  endpoints:
+    - port: http
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s

@@ -1,0 +1,91 @@
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: sre-app-alerts
+  namespace: monitoring
+  labels:
+    release: monitoring
+spec:
+  groups:
+    - name: sre-app.availability
+      interval: 30s
+      rules:
+        - alert: HighErrorRate
+          expr: |
+            sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+            / sum(rate(http_requests_total[5m])) > 0.05
+          for: 5m
+          labels:
+            severity: critical
+            team: sre
+          annotations:
+            summary: "High error rate — SLO breach imminent"
+            description: "Error rate is {{ $value | humanizePercentage }} over 5m. SLO threshold: 5%."
+            runbook_url: "https://github.com/YOUR_USERNAME/sre-autoscaling-observability/blob/main/runbooks/high-error-rate.md"
+
+        - alert: PodCrashLooping
+          expr: |
+            increase(kube_pod_container_status_restarts_total{namespace="sre-app"}[15m]) > 3
+          for: 5m
+          labels:
+            severity: critical
+            team: sre
+          annotations:
+            summary: "Pod {{ $labels.pod }} is crash looping"
+            description: "{{ $value }} restarts in 15 minutes."
+            runbook_url: "https://github.com/YOUR_USERNAME/sre-autoscaling-observability/blob/main/runbooks/pod-crash-loop.md"
+
+        - alert: HPAAtMaxReplicas
+          expr: |
+            kube_horizontalpodautoscaler_status_current_replicas{namespace="sre-app"}
+            == kube_horizontalpodautoscaler_spec_max_replicas{namespace="sre-app"}
+          for: 10m
+          labels:
+            severity: warning
+            team: sre
+          annotations:
+            summary: "HPA at max — cannot scale further"
+            description: "HPA has been at max replicas for 10+ minutes. Capacity planning needed."
+            runbook_url: "https://github.com/YOUR_USERNAME/sre-autoscaling-observability/blob/main/runbooks/hpa-max-replicas.md"
+
+        - alert: HighP95Latency
+          expr: |
+            histogram_quantile(0.95,
+              sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint)
+            ) > 1.0
+          for: 5m
+          labels:
+            severity: warning
+            team: sre
+          annotations:
+            summary: "P95 latency exceeds 1s SLO on {{ $labels.endpoint }}"
+            description: "P95 latency is {{ $value }}s (SLO: 1.0s)."
+
+        - alert: ServiceDown
+          expr: up{job="sre-app"} == 0
+          for: 1m
+          labels:
+            severity: critical
+            team: sre
+          annotations:
+            summary: "SRE app is completely unreachable"
+            description: "Prometheus cannot scrape metrics — service may be fully down."
+
+    - name: sre-app.slo_records
+      rules:
+        - record: sre_app:error_budget_burn_rate:5m
+          expr: |
+            sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+            / sum(rate(http_requests_total[5m]))
+
+        - record: sre_app:request_success_rate:5m
+          expr: |
+            sum(rate(http_requests_total{status_code!~"5.."}[5m]))
+            / sum(rate(http_requests_total[5m]))
+
+        - record: sre_app:availability:30d
+          expr: |
+            1 - (
+              sum(increase(http_requests_total{status_code=~"5.."}[30d]))
+              / sum(increase(http_requests_total[30d]))
+            )
