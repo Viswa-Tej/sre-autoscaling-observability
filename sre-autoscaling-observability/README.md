@@ -1,6 +1,6 @@
 # SRE Auto-Scaling Observability — GKE Edition
 
-![CI/CD](https://github.com/YOUR_USERNAME/sre-autoscaling-observability/actions/workflows/deploy.yml/badge.svg)
+![CI/CD](https://github.com/Viswa-Tej/sre-autoscaling-observability/actions/workflows/deploy.yml/badge.svg)
 
 A production-grade SRE project demonstrating auto-scaling, full-stack observability, SLO monitoring, and GitOps CI/CD on **Google Kubernetes Engine (GCP)** — fully within the GCP free tier / $300 credit.
 

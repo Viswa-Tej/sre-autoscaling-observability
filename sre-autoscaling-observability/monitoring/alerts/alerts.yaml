@@ -21,7 +21,7 @@ spec:
           annotations:
             summary: "High error rate — SLO breach imminent"
             description: "Error rate is {{ $value | humanizePercentage }} over 5m. SLO threshold: 5%."
-            runbook_url: "https://github.com/YOUR_USERNAME/sre-autoscaling-observability/blob/main/runbooks/high-error-rate.md"
+            runbook_url: "https://github.com/Viswa-Tej/sre-autoscaling-observability/blob/main/runbooks/high-error-rate.md"
 
         - alert: PodCrashLooping
           expr: |
@@ -33,7 +33,7 @@ spec:
           annotations:
             summary: "Pod {{ $labels.pod }} is crash looping"
             description: "{{ $value }} restarts in 15 minutes."
-            runbook_url: "https://github.com/YOUR_USERNAME/sre-autoscaling-observability/blob/main/runbooks/pod-crash-loop.md"
+            runbook_url: "https://github.com/Viswa-Tej/sre-autoscaling-observability/blob/main/runbooks/pod-crash-loop.md"
 
         - alert: HPAAtMaxReplicas
           expr: |
@@ -46,7 +46,7 @@ spec:
           annotations:
             summary: "HPA at max — cannot scale further"
             description: "HPA has been at max replicas for 10+ minutes. Capacity planning needed."
-            runbook_url: "https://github.com/YOUR_USERNAME/sre-autoscaling-observability/blob/main/runbooks/hpa-max-replicas.md"
+            runbook_url: "https://github.com/Viswa-Tej/sre-autoscaling-observability/blob/main/runbooks/hpa-max-replicas.md"
 
         - alert: HighP95Latency
           expr: |
