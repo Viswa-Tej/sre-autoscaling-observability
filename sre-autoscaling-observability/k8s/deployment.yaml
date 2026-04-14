@@ -29,7 +29,7 @@ spec:
       containers:
         - name: sre-app
           # GitHub Actions replaces PLACEHOLDER with real image tag
-          image: PLACEHOLDER_REGISTRY/sre-autoscaling-app:latest
+          image: europe-west1-docker.pkg.dev/sre-autoscaling-project/sre-autoscaling-app/sre-app:latest
           ports:
             - containerPort: 5000
               name: http
