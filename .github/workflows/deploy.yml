@@ -113,18 +113,12 @@ jobs:
 
       - name: Apply manifests and rolling update
         run: |
-          IMAGE_URI="${{ needs.build-push.outputs.image_uri }}:${{ needs.build-push.outputs.image_tag }}"
-
-          # Apply all manifests
+          IMAGE_URI="europe-west1-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/sre-autoscaling-app/sre-app:${{ needs.build-push.outputs.image_tag }}"
           kubectl apply -f sre-autoscaling-observability/k8s/namespace.yaml
           kubectl apply -f sre-autoscaling-observability/k8s/
-
-          # Update image — triggers rolling update
           kubectl set image deployment/sre-app sre-app=$IMAGE_URI -n ${{ env.K8S_NAMESPACE }}
-
-          # Wait for rollout
           kubectl rollout status deployment/sre-app -n ${{ env.K8S_NAMESPACE }} --timeout=300s
-
+      
       - name: Post-deploy verification
         run: |
           echo "=== Pods ==="
