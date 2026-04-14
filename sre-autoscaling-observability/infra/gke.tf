@@ -1,5 +1,5 @@
 resource "google_service_account" "gke_nodes" {
-  account_id   = "${var.cluster_name}-nodes-sa"
+  account_id   = "gke-nodes-sa"
   display_name = "GKE Node Service Account"
 }
 
@@ -18,6 +18,7 @@ resource "google_project_iam_member" "gke_node_roles" {
 resource "google_container_cluster" "main" {
   name     = var.cluster_name
   location = var.zone
+  deletion_protection = false
 
   # We manage node pools separately
   remove_default_node_pool = true
