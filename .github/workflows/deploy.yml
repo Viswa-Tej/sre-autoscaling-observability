@@ -28,10 +28,10 @@ jobs:
           python-version: "3.11"
 
       - name: Install dependencies
-        run: pip install -r app/requirements.txt pytest
+        run: pip install -r sre-autoscaling-observability/app/requirements.txt pytest
 
       - name: Run tests
-        run: cd app && python -m pytest tests/ -v
+        run: cd sre-autoscaling-observability/app && python -m pytest tests/ -v
 
   # ── Job 2: Build & Push to Artifact Registry ────────────────────────────
   build-push:
@@ -76,7 +76,7 @@ jobs:
       - name: Build and push image
         run: |
           URI=${{ steps.tag.outputs.uri }}
-          docker build -t $URI:${{ steps.tag.outputs.tag }} -t $URI:latest ./app
+          docker build -t $URI:${{ steps.tag.outputs.tag }} -t $URI:latest ./sre-autoscaling-observability/app
           docker push $URI:${{ steps.tag.outputs.tag }}
           docker push $URI:latest
           echo "Pushed: $URI:${{ steps.tag.outputs.tag }}"
@@ -116,8 +116,8 @@ jobs:
           IMAGE_URI=${{ needs.build-push.outputs.image_uri }}:${{ needs.build-push.outputs.image_tag }}
 
           # Apply all manifests
-          kubectl apply -f k8s/namespace.yaml
-          kubectl apply -f k8s/
+          kubectl apply -f sre-autoscaling-observability/k8s/namespace.yaml
+          kubectl apply -f sre-autoscaling-observability/k8s/
 
           # Update image — triggers rolling update
           kubectl set image deployment/sre-app sre-app=$IMAGE_URI -n ${{ env.K8S_NAMESPACE }}
@@ -158,7 +158,7 @@ jobs:
         uses: hashicorp/setup-terraform@v3
 
       - name: Terraform destroy
-        working-directory: infra
+        working-directory: sre-autoscaling-observability/infra
         env:
           TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
         run: |
