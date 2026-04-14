@@ -1,0 +1,166 @@
+name: CI/CD — Build, Push & Deploy to GKE
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  GCP_REGION: europe-west1
+  GCP_ZONE: europe-west1-b
+  GKE_CLUSTER: sre-autoscaling-cluster
+  GAR_REPO: sre-autoscaling-app
+  K8S_NAMESPACE: sre-app
+  IMAGE_NAME: sre-app
+
+jobs:
+  # ── Job 1: Test ─────────────────────────────────────────────────────────
+  test:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r app/requirements.txt pytest
+
+      - name: Run tests
+        run: cd app && python -m pytest tests/ -v
+
+  # ── Job 2: Build & Push to Artifact Registry ────────────────────────────
+  build-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.ref == 'refs/heads/main'
+
+    # Workload Identity Federation — NO long-lived service account keys
+    permissions:
+      contents: read
+      id-token: write
+
+    outputs:
+      image_tag: ${{ steps.tag.outputs.tag }}
+      image_uri: ${{ steps.tag.outputs.uri }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set image tag from git SHA
+        id: tag
+        run: |
+          TAG=${{ github.sha }}
+          URI=${{ env.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/${{ env.GAR_REPO }}/${{ env.IMAGE_NAME }}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "uri=$URI" >> $GITHUB_OUTPUT
+
+      # Workload Identity Federation: no JSON key stored in GitHub secrets
+      - name: Authenticate to GCP via Workload Identity Federation
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      - name: Build and push image
+        run: |
+          URI=${{ steps.tag.outputs.uri }}
+          docker build -t $URI:${{ steps.tag.outputs.tag }} -t $URI:latest ./app
+          docker push $URI:${{ steps.tag.outputs.tag }}
+          docker push $URI:latest
+          echo "Pushed: $URI:${{ steps.tag.outputs.tag }}"
+
+  # ── Job 3: Deploy to GKE ────────────────────────────────────────────────
+  deploy:
+    name: Deploy to GKE
+    runs-on: ubuntu-latest
+    needs: build-push
+    if: github.ref == 'refs/heads/main'
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Get GKE credentials
+        uses: google-github-actions/get-gke-credentials@v2
+        with:
+          cluster_name: ${{ env.GKE_CLUSTER }}
+          location: ${{ env.GCP_ZONE }}
+          project_id: ${{ secrets.GCP_PROJECT_ID }}
+
+      - name: Apply manifests and rolling update
+        run: |
+          IMAGE_URI=${{ needs.build-push.outputs.image_uri }}:${{ needs.build-push.outputs.image_tag }}
+
+          # Apply all manifests
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/
+
+          # Update image — triggers rolling update
+          kubectl set image deployment/sre-app sre-app=$IMAGE_URI -n ${{ env.K8S_NAMESPACE }}
+
+          # Wait for rollout
+          kubectl rollout status deployment/sre-app -n ${{ env.K8S_NAMESPACE }} --timeout=300s
+
+      - name: Post-deploy verification
+        run: |
+          echo "=== Pods ==="
+          kubectl get pods -n ${{ env.K8S_NAMESPACE }}
+          echo "=== HPA ==="
+          kubectl get hpa -n ${{ env.K8S_NAMESPACE }}
+          echo "=== Service ==="
+          kubectl get svc -n ${{ env.K8S_NAMESPACE }}
+
+  # ── Job 4: Destroy infra (manual trigger only) ─────────────────────────
+  destroy:
+    name: Destroy GKE Cluster (manual only)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    environment: destroy-gate
+
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Authenticate to GCP
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.WIF_PROVIDER }}
+          service_account: ${{ secrets.WIF_SERVICE_ACCOUNT }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Terraform destroy
+        working-directory: infra
+        env:
+          TF_VAR_project_id: ${{ secrets.GCP_PROJECT_ID }}
+        run: |
+          terraform init
+          terraform destroy -auto-approve
