@@ -113,7 +113,7 @@ jobs:
 
       - name: Apply manifests and rolling update
         run: |
-          IMAGE_URI=${{ needs.build-push.outputs.image_uri }}:${{ needs.build-push.outputs.image_tag }}
+          IMAGE_URI="${{ needs.build-push.outputs.image_uri }}:${{ needs.build-push.outputs.image_tag }}"
 
           # Apply all manifests
           kubectl apply -f sre-autoscaling-observability/k8s/namespace.yaml
